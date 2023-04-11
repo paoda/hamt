@@ -130,32 +130,25 @@ pub fn insert(self: *HashArrayMappedTrie, comptime key: []const u8, value: void)
                 const prev_bitset = hash(prev_pair.key);
                 const prev_mask = @as(u32, 1) << amtIdx(u32, prev_bitset, hash_offset);
 
-                const table = switch (std.math.order(mask, prev_mask)) {
-                    .lt => blk: {
+                switch (std.math.order(mask, prev_mask)) {
+                    .lt, .gt => {
                         // there are no collisions between the two hash subsets.
                         const pairs = try self.allocator.alloc(Node, 2);
-                        pairs[0] = .{ .kv = .{ .key = key, .value = value } };
-                        pairs[1] = .{ .kv = prev_pair };
+                        const map = mask | prev_mask;
 
-                        break :blk .{ .table = .{ .map = mask | prev_mask, .base = pairs.ptr } };
-                    },
-                    .gt => blk: {
-                        // there are no collisions between the two hash subsets.
-                        const pairs = try self.allocator.alloc(Node, 2);
-                        pairs[0] = .{ .kv = prev_pair };
-                        pairs[1] = .{ .kv = .{ .key = key, .value = value } };
+                        pairs[@popCount(map & (prev_mask - 1))] = .{ .kv = prev_pair };
+                        pairs[@popCount(map & (mask - 1))] = .{ .kv = .{ .key = key, .value = value } };
 
-                        break :blk .{ .table = .{ .map = mask | prev_mask, .base = pairs.ptr } };
+                        current.* = .{ .table = .{ .map = map, .base = pairs.ptr } };
+                        return;
                     },
-                    .eq => blk: {
+                    .eq => {
                         const copied_pair = try self.allocator.alloc(Node, 1);
                         copied_pair[0] = .{ .kv = prev_pair };
 
-                        break :blk .{ .table = .{ .map = mask, .base = copied_pair.ptr } };
+                        current.* = .{ .table = .{ .map = mask, .base = copied_pair.ptr } };
                     },
-                };
-
-                current.* = table;
+                }
             },
         }
     }
