@@ -175,7 +175,9 @@ fn walk(node: *const Node, indent: u8) void {
 
 fn hash(key: []const u8) u32 {
     var result: u32 = 0;
-    for (key) |c| result |= @as(u32, 1) << @intCast(u5, c - 'a');
+
+    // 6 because we're working with 'a' -> 'z'
+    for (key) |c| result |= @as(u32, 1) << 6 + @intCast(u5, c - 'a');
 
     return result;
 }
