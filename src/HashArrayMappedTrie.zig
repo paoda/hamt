@@ -154,14 +154,31 @@ pub fn insert(self: *HashArrayMappedTrie, comptime key: []const u8, value: void)
     }
 }
 
-fn walk(node: *const Node, indent: u8) void {
-    switch (node.*) {
-        .kv => |pair| std.debug.print("{}: {any}\n", .{ indent, pair }),
-        .table => |table| {
-            const len = @popCount(table.map);
+pub fn walk(hamt: *const HashArrayMappedTrie) void {
+    for (hamt.root, 0..) |maybe_node, i| {
+        std.debug.print("{:0>2}: ", .{i});
 
-            for (0..len) |i| {
-                walk(&table.base[i], indent + 1);
+        if (maybe_node == null) {
+            std.debug.print("null\n", .{});
+        } else {
+            recurseNodes(maybe_node.?, 1);
+        }
+    }
+}
+
+fn recurseNodes(node: *Node, depth: u16) void {
+    switch (node.*) {
+        .kv => |pair| {
+            std.debug.print(".{{ .key = \"{s}\", .value = {} }}\n", .{ pair.key, pair.value });
+        },
+        .table => |table| {
+            std.debug.print(".{{ .map = 0x{X:0>8}, .ptr = {*} }}\n", .{ table.map, table.base });
+
+            for (0..@popCount(table.map)) |i| {
+                for (0..depth) |_| std.debug.print(" ", .{});
+                std.debug.print("{:0>2}: ", .{i});
+
+                recurseNodes(&table.base[i], depth + 1);
             }
         },
     }
