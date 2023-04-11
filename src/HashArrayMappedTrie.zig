@@ -98,12 +98,13 @@ pub fn insert(self: *HashArrayMappedTrie, comptime key: []const u8, value: void)
                     // Empty
                     const old_len = @popCount(table.map);
                     const new_base = try self.allocator.alloc(Node, old_len + 1);
+                    const new_map = table.map | mask;
 
                     var i: u5 = 0;
                     for (0..@typeInfo(u32).Int.bits) |shift| {
                         const mask_loop = @as(u32, 1) << @intCast(u5, shift);
 
-                        if (table.map & mask_loop != 0) {
+                        if (new_map & mask_loop != 0) {
                             defer i += 1;
 
                             const idx = @popCount(table.map & (mask_loop - 1));
@@ -114,7 +115,7 @@ pub fn insert(self: *HashArrayMappedTrie, comptime key: []const u8, value: void)
 
                     self.allocator.free(table.base[0..old_len]);
                     table.base = new_base.ptr;
-                    table.map |= mask;
+                    table.map = new_map;
 
                     return; // inserted an elemnt into the Trie
                 } else {
