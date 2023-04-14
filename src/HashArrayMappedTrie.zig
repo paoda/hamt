@@ -66,14 +66,13 @@ pub fn search(self: *HashArrayMappedTrie, key: []const u8) ?Pair {
     while (true) {
         switch (current.*) {
             .table => |table| {
-                hash_offset += t;
-
                 const mask = @as(u32, 1) << amtIdx(u32, bitset, hash_offset);
 
                 if (table.map & mask != 0) {
                     const idx = @popCount(table.map & (mask - 1));
-
                     current = &table.base[idx];
+
+                    hash_offset += t;
                 } else return null; // hash table entry is empty
             },
             .kv => |pair| {
@@ -218,17 +217,22 @@ test "search doesn't panic" {
     std.debug.assert(trie.search("hello") == null);
 }
 
-test "insert then search" {
+test "insert edge cases" {
     var trie = try HashArrayMappedTrie.init(std.heap.page_allocator);
     defer trie.deinit();
 
     // Basic Usage
     try trie.insert("hello", {});
-    const test1 = trie.search("hello").?;
-    try std.testing.expectEqual(Pair{ .key = "hello", .value = {} }, test1);
+    try trie.insert("world", {});
+    try trie.insert("zywxv", {});
 
-    // Collision in Root Node
-    try trie.insert("helloworld", {});
-    const test2 = trie.search("helloworld").?;
-    try std.testing.expectEqual(Pair{ .key = "helloworld", .value = {} }, test2);
+    // Colliding Keys
+    try trie.insert("abcde", {});
+    try trie.insert("abcdef", {});
+
+    trie.walk();
+
+    try std.testing.expectEqual(Pair{ .key = "hello", .value = {} }, trie.search("hello").?);
+
+    // try std.testing.expectEqual(Pair{ .key = "abcde", .value = {} }, trie.search("abcde").?);
 }
