@@ -24,17 +24,28 @@ pub fn init(allocator: Allocator) !HashArrayMappedTrie {
 }
 
 pub fn deinit(self: *HashArrayMappedTrie) void {
-    for (self.root) |node| {
-        if (node == null) continue;
+    for (self.root) |maybe_node| {
+        const node = maybe_node orelse continue;
 
-        deinitRecurse(self.allocator, node.?);
+        deinitInner(self.allocator, node);
+        self.allocator.destroy(node);
     }
 }
 
-fn deinitRecurse(allocator: Allocator, node: *Node) void {
+fn deinitInner(allocator: Allocator, node: *Node) void {
     switch (node.*) {
-        .kv => allocator.destroy(node),
-        else => {},
+        .kv => |_| return, // will be deallocated by caller
+        .table => |table| {
+            const amt_ptr = table.base[0..@popCount(table.map)]; // Array Mapped Table
+
+            for (amt_ptr) |*sub_node| {
+                if (sub_node.* == .table) {
+                    deinitInner(allocator, sub_node);
+                }
+            }
+
+            allocator.free(amt_ptr);
+        },
     }
 }
 

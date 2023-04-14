@@ -2,7 +2,12 @@ const std = @import("std");
 const HashArrayMappedTrie = @import("HashArrayMappedTrie.zig");
 
 pub fn main() !void {
-    var trie = try HashArrayMappedTrie.init(std.heap.page_allocator);
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer std.debug.assert(!gpa.deinit());
+
+    const allocator = gpa.allocator();
+
+    var trie = try HashArrayMappedTrie.init(allocator);
     defer trie.deinit();
 
     try trie.insert("and", {});
