@@ -13,10 +13,14 @@ pub fn HashArrayMappedTrie(comptime K: type, comptime V: type, comptime Context:
         const table_size = @typeInfo(Digest).Int.bits;
         const t = @intCast(Log2Int(Digest), @typeInfo(Log2Int(Digest)).Int.bits);
 
+        // zig fmt: off
+        comptime { verify(Context); }
+        // zig fmt: on
+
         root: [table_size]?*Node,
 
         const Node = union(enum) { kv: Pair, table: Table };
-        const Table = struct { map: u32 = 0, base: [*]Node };
+        const Table = struct { map: Digest = 0, base: [*]Node };
         const Pair = struct { key: K, value: V };
 
         pub fn init() Self {
@@ -204,27 +208,25 @@ pub fn HashArrayMappedTrie(comptime K: type, comptime V: type, comptime Context:
     };
 }
 
-fn TestContext(comptime HashCode: type) type {
-    return struct {
-        pub const Digest = HashCode;
+pub fn verify(comptime Context: type) void {
+    _ = Context;
 
-        pub inline fn hash(key: []const u8) Digest {
-            // the MSB will represent 'z'
-            const offset = @typeInfo(Digest).Int.bits - 26;
-
-            var result: Digest = 0;
-            for (key) |c| result |= @as(Digest, 1) << @intCast(Log2Int(Digest), offset + c - 'a');
-
-            return result;
-        }
-
-        pub inline fn eql(left: []const u8, right: []const u8) bool {
-            return std.mem.eql(u8, left, right);
-        }
-    };
+    // TODO: verify that the context type has the right decls
 }
 
-const TestHamt = HashArrayMappedTrie([]const u8, void, TestContext(u32));
+const StringContext = struct {
+    pub const Digest = u64;
+
+    pub inline fn hash(key: []const u8) Digest {
+        return std.hash.Wyhash.hash(0, key);
+    }
+
+    pub inline fn eql(left: []const u8, right: []const u8) bool {
+        return std.mem.eql(u8, left, right);
+    }
+};
+
+const TestHamt = HashArrayMappedTrie([]const u8, void, StringContext);
 
 test "trie init" {
     _ = TestHamt.init();
