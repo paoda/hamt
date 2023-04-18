@@ -1,6 +1,5 @@
 comptime {
-    _ = @import("HashArrayMappedTrie.zig");
-    _ = @import("main.zig");
+    _ = @import("trie.zig");
 }
 
 test {
