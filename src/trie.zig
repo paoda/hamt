@@ -21,7 +21,7 @@ pub fn HashArrayMappedTrie(comptime K: type, comptime V: type, comptime Context:
 
         const Node = union(enum) { kv: Pair, table: Table };
         const Table = struct { map: Digest = 0, base: [*]Node };
-        const Pair = struct { key: K, value: V };
+        pub const Pair = struct { key: K, value: V };
 
         pub fn init() Self {
             return Self{ .root = [_]?*Node{null} ** table_size };
@@ -291,23 +291,23 @@ const StringContext = struct {
     }
 };
 
-const TestHamt = HashArrayMappedTrie([]const u8, void, StringContext);
+const StringTrie = HashArrayMappedTrie([]const u8, void, StringContext);
 
 test "trie init" {
-    _ = TestHamt.init();
+    _ = StringTrie.init();
 }
 
 test "init and deinit" {
     const allocator = std.testing.allocator;
 
-    var trie = TestHamt.init();
+    var trie = StringTrie.init();
     defer trie.deinit(allocator);
 }
 
 test "trie insert" {
     const allocator = std.testing.allocator;
 
-    var trie = TestHamt.init();
+    var trie = StringTrie.init();
     defer trie.deinit(allocator);
 
     try trie.insert(allocator, "hello", {});
@@ -315,10 +315,10 @@ test "trie insert" {
 }
 
 test "trie search" {
-    const Pair = TestHamt.Pair;
+    const Pair = StringTrie.Pair;
     const allocator = std.testing.allocator;
 
-    var trie = TestHamt.init();
+    var trie = StringTrie.init();
     defer trie.deinit(allocator);
 
     try std.testing.expectEqual(@as(?Pair, null), trie.search("sdvx"));
@@ -330,4 +330,17 @@ test "trie search" {
 
     try trie.insert(allocator, "", {});
     try std.testing.expectEqual(@as(?Pair, .{ .key = "", .value = {} }), trie.search(""));
+}
+
+test "README.md example" {
+    const Pair = StringTrie.Pair;
+    const allocator = std.testing.allocator;
+
+    var trie = StringTrie.init();
+    defer trie.deinit(allocator);
+
+    try trie.insert(allocator, "hello", {});
+
+    try std.testing.expectEqual(@as(?Pair, .{ .key = "hello", .value = {} }), trie.search("hello"));
+    try std.testing.expectEqual(@as(?Pair, null), trie.search("world"));
 }

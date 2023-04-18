@@ -1,5 +1,5 @@
 .{
-	.name = "SDL",
-	.version = "0.0.1",
+	.name = "hamt",
+	.version = "0.1.0",
 	.dependencies = .{},
 }
