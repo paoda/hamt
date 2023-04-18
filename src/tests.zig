@@ -1,4 +1,5 @@
 comptime {
+    _ = @import("lib.zig");
     _ = @import("trie.zig");
 }
 
