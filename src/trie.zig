@@ -6,16 +6,16 @@ const Log2Int = std.math.Log2Int;
 /// Hash Array Mapped Trie
 /// https://idea.popcount.org/2012-07-25-introduction-to-hamt/
 pub fn HashArrayMappedTrie(comptime K: type, comptime V: type, comptime Context: type) type {
+    // zig fmt: off
+    comptime { verify(K, Context); }
+    // zig fmt: on
+
     return struct {
         const Self = @This();
 
         const Digest = Context.Digest; // as in Hash Code or Hash Digest
         const table_size = @typeInfo(Digest).Int.bits;
         const t = @intCast(Log2Int(Digest), @typeInfo(Log2Int(Digest)).Int.bits);
-
-        // zig fmt: off
-        comptime { verify(Context); }
-        // zig fmt: on
 
         root: [table_size]?*Node,
 
@@ -208,10 +208,75 @@ pub fn HashArrayMappedTrie(comptime K: type, comptime V: type, comptime Context:
     };
 }
 
-pub fn verify(comptime Context: type) void {
-    _ = Context;
+pub fn verify(comptime K: type, comptime Context: type) void {
+    // FIXME: Context should be able to be a pointer to a type
 
-    // TODO: verify that the context type has the right decls
+    switch (@typeInfo(Context)) {
+        .Struct, .Union, .Enum => {},
+        .Pointer => @compileError("Pointer trie contexts have yet to be implemented"),
+        else => @compileError("Trie context must be a type with Digest, hash(" ++ @typeName(K) ++ ") Digest, and eql(" ++ @typeName(K) ++ ", " ++ @typeName(K) ++ ") bool"),
+    }
+
+    if (@hasDecl(Context, "Digest")) {
+        const Digest = Context.Digest;
+        const info = @typeInfo(Digest);
+
+        if (info != .Int) @compileError("Context.Digest must be an integer, however it was actually " ++ @typeName(Digest));
+        if (info.Int.signedness != .unsigned) @compileError("Context.Digest must be an unsigned integer, however it was actually an " ++ @typeName(Digest));
+    }
+
+    if (@hasDecl(Context, "hash")) {
+        const hash = Context.hash;
+        const HashFn = @TypeOf(hash);
+
+        const info = @typeInfo(HashFn);
+
+        if (info != .Fn) @compileError("Context.hash must be a function, however it was actually" ++ @typeName(HashFn));
+
+        const func = info.Fn;
+        if (func.params.len != 1) @compileError("Invalid Context.hash signature. Expected hash(" ++ @typeName(K) ++ "), but was actually " ++ @typeName(HashFn));
+
+        // short-circuiting guarantees no panics..............vvv here
+        if (func.params[0].type == null or func.params[0].type.? != K) {
+            const type_str = if (func.params[0].type) |Param| @typeName(Param) else "null";
+            @compileError("Invalid Context.hash signature. Parameter must be " ++ @typeName(K) ++ ", however it was " ++ type_str);
+        }
+
+        if (func.return_type == null or func.return_type.? != Context.Digest) {
+            const type_str = if (func.return_type) |Return| @typeName(Return) else "null";
+
+            @compileError("Invalid Context.hash signature. Return type must be " ++ @typeName(Context.Digest) ++ ", however it was " ++ type_str);
+        }
+    }
+
+    if (@hasDecl(Context, "eql")) {
+        const eql = Context.eql;
+        const EqlFn = @TypeOf(eql);
+
+        const info = @typeInfo(EqlFn);
+
+        if (info != .Fn) @compileError("Context.eql must be a function, however it was actually" ++ @typeName(EqlFn));
+
+        const func = info.Fn;
+        if (func.params.len != 2) @compileError("Invalid Context.eql signature. Expected eql(" ++ @typeName(K) ++ ", " ++ @typeName(K) ++ "), but was actually " ++ @typeName(EqlFn));
+
+        // short-circuiting guarantees no panics..............vvv here
+        if (func.params[0].type == null or func.params[0].type.? != K) {
+            const type_str = if (func.params[0].type) |Param| @typeName(Param) else "null";
+            @compileError("Invalid Context.eql signature. First parameter must be " ++ @typeName(K) ++ ", however it was " ++ type_str);
+        }
+
+        if (func.params[1].type == null or func.params[1].type.? != K) {
+            const type_str = if (func.params[1].type) |Param| @typeName(Param) else "null";
+            @compileError("Invalid Context.eql signature. Second parameter must be " ++ @typeName(K) ++ ", however it was " ++ type_str);
+        }
+
+        if (func.return_type == null or func.return_type.? != bool) {
+            const type_str = if (func.return_type) |Return| @typeName(Return) else "null";
+
+            @compileError("Invalid Context.eql signature, Return type must be " ++ @typeName(bool) ++ ", however it was " ++ type_str);
+        }
+    }
 }
 
 const StringContext = struct {
