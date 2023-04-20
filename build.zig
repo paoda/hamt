@@ -15,8 +15,7 @@ pub fn build(b: *std.Build) void {
     // set a preferred release mode, allowing the user to decide how to optimize.
     const optimize = b.standardOptimizeOption(.{});
 
-    const module = b.addModule("hamt", .{ .source_file = .{ .path = "src/lib.zig" } });
-    _ = module;
+    const hamt_module = b.addModule("hamt", .{ .source_file = .{ .path = "src/lib.zig" } });
 
     const lib = b.addStaticLibrary(.{
         .name = "hamt",
@@ -31,6 +30,19 @@ pub fn build(b: *std.Build) void {
     // location when the user invokes the "install" step (the default step when
     // running `zig build`).
     b.installArtifact(lib);
+
+    // Benchmark
+    const bench = b.addExecutable(.{
+        .name = "hamt-benchmark",
+        .root_source_file = .{ .path = "src/bench.zig" },
+        .target = target,
+        .optimize = optimize,
+    });
+    bench.addModule("hamt", hamt_module);
+
+    const bench_cmd = b.addRunArtifact(bench);
+    const bench_step = b.step("bench", "Run benchmark");
+    bench_step.dependOn(&bench_cmd.step);
 
     // Creates a step for unit testing. This only builds the test executable
     // but does not run it.
