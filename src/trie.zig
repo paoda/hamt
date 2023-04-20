@@ -86,7 +86,7 @@ pub fn HashArrayMappedTrie(comptime K: type, comptime V: type, comptime Context:
             }
         }
 
-        pub fn insert(self: *Self, allocator: Allocator, comptime key: K, value: V) !void {
+        pub fn insert(self: *Self, allocator: Allocator, key: K, value: V) !void {
             const hash = Context.hash(key);
 
             // most siginificant t bits from hash
