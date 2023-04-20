@@ -18,24 +18,28 @@ pub fn main() !void {
     defer std.debug.assert(!gpa.deinit());
 
     const allocator = gpa.allocator();
+    const elem_count = 10;
 
-    const keys = try allocator.alloc([32]u8, 10);
+    const keys = try allocator.alloc([32]u8, elem_count);
     defer allocator.free(keys);
 
     var rand = std.rand.DefaultPrng.init(0);
     for (keys) |*key| rand.fill(key);
 
-    var trie = HashArrayMappedTrie([]const u8, void, StringContext).init();
+    var trie = try HashArrayMappedTrie([]const u8, void, StringContext).init(allocator);
     defer trie.deinit(allocator);
-
-    for (keys) |*key| {
-        try trie.insert(allocator, key, {});
-    }
 
     var timer = try std.time.Timer.start();
     for (keys) |*key| {
+        try trie.insert(allocator, key, {});
+    }
+    const insert_time = timer.lap();
+
+    for (keys) |*key| {
         _ = trie.search(key);
     }
+    const search_time = timer.read();
 
-    std.debug.print("{}ns\n", .{timer.read()});
+    std.debug.print("Insert: {d:.2}ns\n", .{(@intToFloat(f32, insert_time) / elem_count) * 100.0});
+    std.debug.print("Search: {d:.2}ns\n", .{(@intToFloat(f32, search_time) / elem_count) * 100.0});
 }

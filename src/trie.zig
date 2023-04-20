@@ -17,14 +17,18 @@ pub fn HashArrayMappedTrie(comptime K: type, comptime V: type, comptime Context:
         const table_size = @typeInfo(Digest).Int.bits;
         const t = @intCast(Log2Int(Digest), @typeInfo(Log2Int(Digest)).Int.bits);
 
-        root: [table_size]?*Node,
+        root: []?*Node,
 
         const Node = union(enum) { kv: Pair, table: Table };
         const Table = struct { map: Digest = 0, base: [*]Node };
         pub const Pair = struct { key: K, value: V };
 
-        pub fn init() Self {
-            return Self{ .root = [_]?*Node{null} ** table_size };
+        pub fn init(allocator: Allocator) !Self {
+            // TODO: Add ability to have a larger root node (for quicker lookup times)
+            const root = try allocator.alloc(?*Node, table_size);
+            std.mem.set(?*Node, root, null);
+
+            return Self{ .root = root };
         }
 
         pub fn deinit(self: *Self, allocator: Allocator) void {
@@ -34,6 +38,8 @@ pub fn HashArrayMappedTrie(comptime K: type, comptime V: type, comptime Context:
                 _deinit(allocator, node);
                 allocator.destroy(node);
             }
+
+            allocator.free(self.root);
         }
 
         fn _deinit(allocator: Allocator, node: *Node) void {
@@ -294,20 +300,22 @@ const StringContext = struct {
 const StringTrie = HashArrayMappedTrie([]const u8, void, StringContext);
 
 test "trie init" {
-    _ = StringTrie.init();
+    const allocator = std.testing.allocator;
+    var trie = try StringTrie.init(allocator);
+    defer trie.deinit(allocator);
 }
 
 test "init and deinit" {
     const allocator = std.testing.allocator;
 
-    var trie = StringTrie.init();
+    var trie = try StringTrie.init(allocator);
     defer trie.deinit(allocator);
 }
 
 test "trie insert" {
     const allocator = std.testing.allocator;
 
-    var trie = StringTrie.init();
+    var trie = try StringTrie.init(allocator);
     defer trie.deinit(allocator);
 
     try trie.insert(allocator, "hello", {});
@@ -318,7 +326,7 @@ test "trie search" {
     const Pair = StringTrie.Pair;
     const allocator = std.testing.allocator;
 
-    var trie = StringTrie.init();
+    var trie = try StringTrie.init(allocator);
     defer trie.deinit(allocator);
 
     try std.testing.expectEqual(@as(?Pair, null), trie.search("sdvx"));
@@ -336,7 +344,7 @@ test "README.md example" {
     const Pair = StringTrie.Pair;
     const allocator = std.testing.allocator;
 
-    var trie = StringTrie.init();
+    var trie = try StringTrie.init(allocator);
     defer trie.deinit(allocator);
 
     try trie.insert(allocator, "hello", {});

@@ -30,7 +30,7 @@ test {
     const Pair = StringTrie.Pair;
     const allocator = std.testing.allocator;
 
-    var trie = StringTrie.init();
+    var trie = try StringTrie.init(allocator);
     defer trie.deinit(allocator);
 
     try trie.insert(allocator, "hello", {});
