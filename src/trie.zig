@@ -121,7 +121,7 @@ pub fn HashArrayMappedTrie(comptime K: type, comptime V: type, comptime Context:
 
                             var i: Log2Int(Digest) = 0;
                             for (0..table_size) |shift| {
-                                const mask_loop = @as(Digest, 1) << @intCast(u5, shift);
+                                const mask_loop = @as(Digest, 1) << @intCast(Log2Int(Digest), shift);
 
                                 if (new_map & mask_loop != 0) {
                                     defer i += 1;
