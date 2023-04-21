@@ -17,18 +17,139 @@ pub fn HashArrayMappedTrie(comptime K: type, comptime V: type, comptime Context:
         const table_size = @typeInfo(Digest).Int.bits;
         const t = @intCast(Log2Int(Digest), @typeInfo(Log2Int(Digest)).Int.bits);
 
+        free_list: FreeList,
         root: []?*Node,
 
         const Node = union(enum) { kv: Pair, table: Table };
         const Table = struct { map: Digest = 0, base: [*]Node };
         pub const Pair = struct { key: K, value: V };
 
+        /// Responsible for managing HAMT Memory
+        const FreeList = struct {
+            list: *[table_size]?FreeList.Node,
+
+            // The index of the array of the linked list any given node belongs to
+            // informs us of how many elements there are in the [*]Node ptr.
+            const Node = struct {
+                inner: [*]Self.Node,
+                next: ?*FreeList.Node = null,
+
+                pub fn deinit(self: *const FreeList.Node, allocator: Allocator, len: usize) void {
+                    switch (len) {
+                        0 => unreachable,
+                        1 => allocator.destroy(@ptrCast(*Self.Node, self.inner)),
+                        else => allocator.free(self.inner[0..len]),
+                    }
+                }
+            };
+
+            pub fn init(allocator: Allocator) !FreeList {
+                const list = try allocator.create([table_size]?FreeList.Node);
+                std.mem.set(?FreeList.Node, list, null);
+
+                return .{ .list = list };
+            }
+
+            pub fn deinit(self: *FreeList, allocator: Allocator) void {
+                for (self.list, 0..) |maybe_node, i| {
+                    // the nodes that exist within the array `self.list` are freed outside
+                    // of this `for` loop, so if any given `maybe_node` is a linked list that is
+                    // 0 or 1 elements long, there is no thing to do here.
+                    const len = i + 1;
+
+                    var current: *FreeList.Node = blk: {
+                        const head = maybe_node orelse continue; // skip if list is 0 elements long
+
+                        head.deinit(allocator, len); // while we know the head exists, free the memory it points to
+                        break :blk head.next orelse continue; // skip if list is 1 element long (see above comment)
+                    };
+
+                    while (current.next) |next| {
+                        const next_ptr = next; // copy the pointer 'cause we're about to deallocate it's owner
+
+                        current.deinit(allocator, len);
+                        allocator.destroy(current);
+
+                        current = next_ptr;
+                    }
+
+                    current.deinit(allocator, len); // free the tail of the list
+                    allocator.destroy(current);
+                }
+
+                allocator.destroy(self.list);
+                self.* = undefined;
+            }
+
+            pub fn alloc(self: *FreeList, allocator: Allocator, comptime T: type, len: usize) ![]T {
+                if (len == 0 or len > table_size) return error.unexpected_table_length;
+
+                // If head is null, (head is self.list[len - 1]) then there was nothing in the free list
+                // therefore we should use the backup allocator
+                var current: *FreeList.Node = &(self.list[len - 1] orelse return try allocator.alloc(T, len));
+                var prev: ?*FreeList.Node = null;
+
+                while (current.next) |next| {
+                    prev = current;
+                    current = next;
+                }
+
+                const ret_ptr = current.inner;
+
+                if (current == &self.list[len - 1].?) {
+                    // The current node is also the head, meaning that there's only one
+                    // element in this linked list. Nodes in self.list are deallocated by another
+                    // part of the program, so we just want to set the ?FreeList.Node to null
+                    self.list[len - 1] = null;
+                } else {
+                    std.debug.assert(prev != null); // this is invaraibly true if current != the head node
+                    std.debug.assert(prev.?.next == current); // FIXME: is this ptr comparison even valuable?
+
+                    prev.?.next = null; // remove node from linked list
+                    allocator.destroy(current);
+                }
+
+                // this is safe because we've grabbed this many-ptr from the linked list of AMTs that have this size
+                return ret_ptr[0..len];
+            }
+
+            pub fn create(self: *FreeList, allocator: Allocator, comptime T: type) !*T {
+                return @ptrCast(*T, try self.alloc(allocator, T, 1));
+            }
+
+            /// Free'd nodes aren't deallocated, but instead are tracked by a free list where they
+            /// may be reused in the future
+            ///
+            /// We may allocate to append a new FreeList Node to the end of the Linked List
+            pub fn free(self: *FreeList, allocator: Allocator, ptr: []Self.Node) !void {
+                if (ptr.len == 0 or ptr.len > table_size) return error.unexpected_table_length;
+
+                var current: *FreeList.Node = &(self.list[ptr.len - 1] orelse {
+                    // There were no nodes present so start off the linked list
+                    self.list[ptr.len - 1] = .{ .inner = ptr.ptr };
+                    return;
+                });
+
+                // traverse the linked list
+                while (current.next) |next| current = next;
+
+                const tail = try allocator.create(FreeList.Node);
+                tail.* = .{ .inner = ptr.ptr };
+
+                current.next = tail;
+            }
+
+            pub fn destroy(self: *FreeList, allocator: Allocator, node: *Self.Node) !void {
+                self.free(allocator, @ptrCast([*]Self.Node, node)[0..1]);
+            }
+        };
+
         pub fn init(allocator: Allocator) !Self {
             // TODO: Add ability to have a larger root node (for quicker lookup times)
             const root = try allocator.alloc(?*Node, table_size);
             std.mem.set(?*Node, root, null);
 
-            return Self{ .root = root };
+            return Self{ .root = root, .free_list = try FreeList.init(allocator) };
         }
 
         pub fn deinit(self: *Self, allocator: Allocator) void {
@@ -40,6 +161,7 @@ pub fn HashArrayMappedTrie(comptime K: type, comptime V: type, comptime Context:
             }
 
             allocator.free(self.root);
+            self.free_list.deinit(allocator);
         }
 
         fn _deinit(allocator: Allocator, node: *Node) void {
@@ -101,7 +223,7 @@ pub fn HashArrayMappedTrie(comptime K: type, comptime V: type, comptime Context:
 
             var current: *Node = self.root[root_idx] orelse {
                 // node in root table is empty, place the KV here
-                const node = try allocator.create(Node);
+                const node = try self.free_list.create(allocator, Node);
                 node.* = .{ .kv = .{ .key = key, .value = value } };
 
                 self.root[root_idx] = node;
@@ -116,7 +238,7 @@ pub fn HashArrayMappedTrie(comptime K: type, comptime V: type, comptime Context:
                         if (table.map & mask == 0) {
                             // Empty
                             const old_len = @popCount(table.map);
-                            const new_base = try allocator.alloc(Node, old_len + 1);
+                            const new_base = try self.free_list.alloc(allocator, Node, old_len + 1);
                             const new_map = table.map | mask;
 
                             var i: Log2Int(Digest) = 0;
@@ -132,7 +254,7 @@ pub fn HashArrayMappedTrie(comptime K: type, comptime V: type, comptime Context:
                                 }
                             }
 
-                            allocator.free(table.base[0..old_len]);
+                            try self.free_list.free(allocator, table.base[0..old_len]);
                             table.base = new_base.ptr;
                             table.map = new_map;
 
@@ -152,7 +274,7 @@ pub fn HashArrayMappedTrie(comptime K: type, comptime V: type, comptime Context:
                         switch (std.math.order(mask, prev_mask)) {
                             .lt, .gt => {
                                 // there are no collisions between the two hash subsets.
-                                const pairs = try allocator.alloc(Node, 2);
+                                const pairs = try self.free_list.alloc(allocator, Node, 2);
                                 const map = mask | prev_mask;
 
                                 pairs[@popCount(map & (prev_mask - 1))] = .{ .kv = prev_pair };
@@ -162,10 +284,10 @@ pub fn HashArrayMappedTrie(comptime K: type, comptime V: type, comptime Context:
                                 return;
                             },
                             .eq => {
-                                const copied_pair = try allocator.alloc(Node, 1);
-                                copied_pair[0] = .{ .kv = prev_pair };
+                                const copied_pair = try self.free_list.create(allocator, Node);
+                                copied_pair.* = .{ .kv = prev_pair };
 
-                                current.* = .{ .table = .{ .map = mask, .base = copied_pair.ptr } };
+                                current.* = .{ .table = .{ .map = mask, .base = @ptrCast([*]Node, copied_pair) } };
                             },
                         }
                     },

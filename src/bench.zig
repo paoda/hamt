@@ -18,12 +18,12 @@ pub fn main() !void {
     defer std.debug.assert(!gpa.deinit());
 
     const allocator = gpa.allocator();
-    const elem_count = 10;
+    const elem_count = 1000;
 
     const keys = try allocator.alloc([32]u8, elem_count);
     defer allocator.free(keys);
 
-    var rand = std.rand.DefaultPrng.init(0);
+    var rand = std.rand.DefaultPrng.init(1337);
     for (keys) |*key| rand.fill(key);
 
     var trie = try HashArrayMappedTrie([]const u8, void, StringContext).init(allocator);
