@@ -13,6 +13,9 @@ const StringContext = struct {
     }
 };
 
+const StringArrayHashMap = std.array_hash_map.StringArrayHashMap(void);
+const StringHashMap = std.hash_map.StringHashMap(void);
+
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer std.debug.assert(!gpa.deinit());
@@ -29,17 +32,70 @@ pub fn main() !void {
     var trie = try HashArrayMappedTrie([]const u8, void, StringContext).init(allocator);
     defer trie.deinit(allocator);
 
-    var timer = try std.time.Timer.start();
-    for (keys) |*key| {
-        try trie.insert(allocator, key, {});
-    }
-    const insert_time = timer.lap();
+    var array_hash_map = StringArrayHashMap.init(allocator);
+    defer array_hash_map.deinit();
 
-    for (keys) |*key| {
-        _ = trie.search(key);
-    }
-    const search_time = timer.read();
+    var hash_map = StringHashMap.init(allocator);
+    defer hash_map.deinit();
 
-    std.debug.print("Insert: {d:.2}ns\n", .{(@intToFloat(f32, insert_time) / elem_count) * 100.0});
-    std.debug.print("Search: {d:.2}ns\n", .{(@intToFloat(f32, search_time) / elem_count) * 100.0});
+    {
+        var timer = try std.time.Timer.start();
+        for (keys) |*key| {
+            try trie.insert(allocator, key, {});
+        }
+        const insert_time = timer.lap();
+
+        for (0..50_000) |_| {
+            for (keys) |*key| {
+                _ = trie.search(key);
+            }
+        }
+        const search_time = timer.read();
+
+        std.debug.print("Hash Array Mapped Trie:\n", .{});
+        std.debug.print("Insert: {}ns\n", .{insert_time});
+        std.debug.print("Search: {}ns\n", .{search_time});
+    }
+
+    std.debug.print("\n", .{});
+
+    {
+        var timer = try std.time.Timer.start();
+        for (keys) |*key| {
+            try hash_map.putNoClobber(key, {});
+        }
+        const insert_time = timer.lap();
+
+        for (0..50_000) |_| {
+            for (keys) |*key| {
+                _ = hash_map.get(key);
+            }
+        }
+        const search_time = timer.read();
+
+        std.debug.print("std.hash_map.HashMap\n", .{});
+        std.debug.print("Insert: {}ns\n", .{insert_time});
+        std.debug.print("Search: {}ns\n", .{search_time});
+    }
+
+    std.debug.print("\n", .{});
+
+    {
+        var timer = try std.time.Timer.start();
+        for (keys) |*key| {
+            try array_hash_map.putNoClobber(key, {});
+        }
+        const insert_time = timer.lap();
+
+        for (0..50_000) |_| {
+            for (keys) |*key| {
+                _ = array_hash_map.get(key);
+            }
+        }
+        const search_time = timer.read();
+
+        std.debug.print("std.array_hash_map.ArrayHashMap\n", .{});
+        std.debug.print("Insert: {}ns\n", .{insert_time});
+        std.debug.print("Search: {}ns\n", .{search_time});
+    }
 }
