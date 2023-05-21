@@ -45,7 +45,7 @@ pub fn HashArrayMappedTrie(comptime K: type, comptime V: type, comptime Context:
 
             pub fn init(allocator: Allocator) !FreeList {
                 const list = try allocator.create([table_size]?FreeList.Node);
-                std.mem.set(?FreeList.Node, list, null);
+                @memset(list, null);
 
                 return .{ .list = list };
             }
@@ -147,7 +147,7 @@ pub fn HashArrayMappedTrie(comptime K: type, comptime V: type, comptime Context:
         pub fn init(allocator: Allocator) !Self {
             // TODO: Add ability to have a larger root node (for quicker lookup times)
             const root = try allocator.alloc(?*Node, table_size);
-            std.mem.set(?*Node, root, null);
+            @memset(root, null);
 
             return Self{ .root = root, .free_list = try FreeList.init(allocator) };
         }

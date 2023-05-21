@@ -18,7 +18,7 @@ const StringHashMap = std.hash_map.StringHashMap(void);
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer std.debug.assert(!gpa.deinit());
+    defer std.debug.assert(gpa.deinit() == .ok);
 
     const allocator = gpa.allocator();
     const elem_count = 1000;
