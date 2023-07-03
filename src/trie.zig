@@ -15,7 +15,7 @@ pub fn HashArrayMappedTrie(comptime K: type, comptime V: type, comptime Context:
 
         const Digest = Context.Digest; // as in Hash Code or Hash Digest
         const table_size = @typeInfo(Digest).Int.bits;
-        const t = @intCast(Log2Int(Digest), @typeInfo(Log2Int(Digest)).Int.bits);
+        const t: Log2Int(Digest) = @intCast(@typeInfo(Log2Int(Digest).Int.bits));
 
         free_list: FreeList,
         root: []?*Node,
@@ -37,7 +37,7 @@ pub fn HashArrayMappedTrie(comptime K: type, comptime V: type, comptime Context:
                 pub fn deinit(self: *const FreeList.Node, allocator: Allocator, len: usize) void {
                     switch (len) {
                         0 => unreachable,
-                        1 => allocator.destroy(@ptrCast(*Self.Node, self.inner)),
+                        1 => allocator.destroy(@as(*Self.Node, @ptrCast(self.inner))),
                         else => allocator.free(self.inner[0..len]),
                     }
                 }
@@ -114,7 +114,7 @@ pub fn HashArrayMappedTrie(comptime K: type, comptime V: type, comptime Context:
             }
 
             pub fn create(self: *FreeList, allocator: Allocator, comptime T: type) !*T {
-                return @ptrCast(*T, try self.alloc(allocator, T, 1));
+                return @ptrCast(try self.alloc(allocator, T, 1));
             }
 
             /// Free'd nodes aren't deallocated, but instead are tracked by a free list where they
@@ -140,7 +140,7 @@ pub fn HashArrayMappedTrie(comptime K: type, comptime V: type, comptime Context:
             }
 
             pub fn destroy(self: *FreeList, allocator: Allocator, node: *Self.Node) !void {
-                self.free(allocator, @ptrCast([*]Self.Node, node)[0..1]);
+                self.free(allocator, @as([*]Self.Node, @ptrCast(node))[0..1]);
             }
         };
 
@@ -182,9 +182,9 @@ pub fn HashArrayMappedTrie(comptime K: type, comptime V: type, comptime Context:
         }
 
         fn tableIdx(hash: Digest, offset: u16) Log2Int(Digest) {
-            const shift_amt = @intCast(Log2Int(Digest), table_size - offset);
+            const shift_amt: Log2Int(Digest) = @intCast(table_size - offset);
 
-            return @truncate(Log2Int(Digest), hash >> shift_amt);
+            return @truncate(hash >> shift_amt);
         }
 
         pub fn search(self: *Self, key: K) ?Pair {
@@ -243,7 +243,7 @@ pub fn HashArrayMappedTrie(comptime K: type, comptime V: type, comptime Context:
 
                             var i: Log2Int(Digest) = 0;
                             for (0..table_size) |shift| {
-                                const mask_loop = @as(Digest, 1) << @intCast(Log2Int(Digest), shift);
+                                const mask_loop = @as(Digest, 1) << @as(Log2Int(Digest), @intCast(shift));
 
                                 if (new_map & mask_loop != 0) {
                                     defer i += 1;
@@ -287,7 +287,7 @@ pub fn HashArrayMappedTrie(comptime K: type, comptime V: type, comptime Context:
                                 const copied_pair = try self.free_list.create(allocator, Node);
                                 copied_pair.* = .{ .kv = prev_pair };
 
-                                current.* = .{ .table = .{ .map = mask, .base = @ptrCast([*]Node, copied_pair) } };
+                                current.* = .{ .table = .{ .map = mask, .base = @as([*]Node, @ptrCast(copied_pair)) } };
                             },
                         }
                     },
