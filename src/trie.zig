@@ -15,7 +15,7 @@ pub fn HashArrayMappedTrie(comptime K: type, comptime V: type, comptime Context:
 
         const Digest = Context.Digest; // as in Hash Code or Hash Digest
         const table_size = @typeInfo(Digest).Int.bits;
-        const t: Log2Int(Digest) = @intCast(@typeInfo(Log2Int(Digest).Int.bits));
+        const t: Log2Int(Digest) = @intCast(@typeInfo(Log2Int(Digest)).Int.bits);
 
         free_list: FreeList,
         root: []?*Node,
