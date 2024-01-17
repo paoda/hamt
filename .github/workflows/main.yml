@@ -16,7 +16,7 @@ jobs:
     steps:
       - uses: goto-bus-stop/setup-zig@v2
         with:
-          version: master
+          version: 0.12.0-dev.2063+804cee3b9
       - uses: actions/checkout@v3
       - run: zig fmt src/*.zig
   test:
@@ -27,7 +27,7 @@ jobs:
     steps:
       - uses: goto-bus-stop/setup-zig@v2
         with:
-          version: master
+          version: 0.12.0-dev.2063+804cee3b9
       - uses: actions/checkout@v3
       - run: zig build test
   bench:
@@ -35,6 +35,6 @@ jobs:
     steps:
       - uses: goto-bus-stop/setup-zig@v2
         with:
-          version: master
+          version: 0.12.0-dev.2063+804cee3b9
       - uses: actions/checkout@v3
       - run: zig build -Doptimize=ReleaseFast -Dcpu=baseline bench

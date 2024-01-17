@@ -15,7 +15,7 @@ pub fn build(b: *std.Build) void {
     // set a preferred release mode, allowing the user to decide how to optimize.
     const optimize = b.standardOptimizeOption(.{});
 
-    const hamt_module = b.addModule("hamt", .{ .source_file = .{ .path = "src/lib.zig" } });
+    const mod = b.addModule("hamt", .{ .root_source_file = .{ .path = "src/lib.zig" } });
 
     const lib = b.addStaticLibrary(.{
         .name = "hamt",
@@ -36,9 +36,9 @@ pub fn build(b: *std.Build) void {
         .name = "hamt-benchmark",
         .root_source_file = .{ .path = "src/bench.zig" },
         .target = target,
-        .optimize = optimize,
+        .optimize = .ReleaseFast,
     });
-    bench.addModule("hamt", hamt_module);
+    bench.root_module.addImport("hamt", mod);
 
     const bench_cmd = b.addRunArtifact(bench);
     const bench_step = b.step("bench", "Run benchmark");
