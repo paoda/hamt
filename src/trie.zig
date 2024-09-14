@@ -181,7 +181,7 @@ pub fn HashArrayMappedTrie(comptime K: type, comptime V: type, comptime Context:
             }
         }
 
-        fn tableIdx(hash: Digest, offset: u16) Log2Int(Digest) {
+        inline fn tableIdx(hash: Digest, offset: u16) Log2Int(Digest) {
             const shift_amt: Log2Int(Digest) = @intCast(table_size - offset);
 
             return @truncate(hash >> shift_amt);

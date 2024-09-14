@@ -2,10 +2,10 @@ const std = @import("std");
 const HashArrayMappedTrie = @import("hamt").HashArrayMappedTrie;
 
 const StringContext = struct {
-    pub const Digest = u64;
+    pub const Digest = u32;
 
     pub fn hash(input: []const u8) Digest {
-        return std.hash.Wyhash.hash(0, input);
+        return @truncate(std.hash.Wyhash.hash(0, input));
     }
 
     pub fn eql(left: []const u8, right: []const u8) bool {
