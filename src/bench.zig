@@ -17,16 +17,13 @@ const StringArrayHashMap = std.array_hash_map.StringArrayHashMap(void);
 const StringHashMap = std.hash_map.StringHashMap(void);
 
 pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer std.debug.assert(gpa.deinit() == .ok);
-
-    const allocator = gpa.allocator();
+    const allocator = std.heap.c_allocator;
     const elem_count = 1000;
 
     const keys = try allocator.alloc([32]u8, elem_count);
     defer allocator.free(keys);
 
-    var rand = std.rand.DefaultPrng.init(1337);
+    var rand = std.rand.DefaultPrng.init(0);
     for (keys) |*key| rand.fill(key);
 
     var trie = try HashArrayMappedTrie([]const u8, void, StringContext).init(allocator);
