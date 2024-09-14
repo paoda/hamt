@@ -18,7 +18,7 @@ pub fn HashArrayMappedTrie(comptime K: type, comptime V: type, comptime Context:
         const t: Log2Int(Digest) = @intCast(@typeInfo(Log2Int(Digest)).Int.bits);
 
         free_list: FreeList,
-        root: []?*Node,
+        root: *[table_size]?*Node,
 
         const Node = union(enum) { kv: Pair, table: Table };
         const Table = struct { map: Digest = 0, base: [*]Node };
@@ -146,7 +146,7 @@ pub fn HashArrayMappedTrie(comptime K: type, comptime V: type, comptime Context:
 
         pub fn init(allocator: Allocator) !Self {
             // TODO: Add ability to have a larger root node (for quicker lookup times)
-            const root = try allocator.alloc(?*Node, table_size);
+            const root = try allocator.create([table_size]?*Node);
             @memset(root, null);
 
             return Self{ .root = root, .free_list = try FreeList.init(allocator) };
@@ -198,13 +198,12 @@ pub fn HashArrayMappedTrie(comptime K: type, comptime V: type, comptime Context:
                 switch (current.*) {
                     .table => |table| {
                         const mask = @as(Digest, 1) << tableIdx(hash, hash_offset);
+                        if (table.map & mask == 0) return null; // empty table
 
-                        if (table.map & mask != 0) {
-                            const idx = @popCount(table.map & (mask - 1));
-                            current = &table.base[idx];
+                        const idx = @popCount(table.map & (mask - 1));
+                        current = &table.base[idx];
 
-                            hash_offset += t;
-                        } else return null; // hash table entry is empty
+                        hash_offset += t;
                     },
                     .kv => |pair| {
                         if (!Context.eql(pair.key, key)) return null;
